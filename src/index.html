@@ -1,0 +1,1018 @@
+<!-- This html validates JSON outputs from AI model -->
+ <!-- This html formats the PDF to be smaller and the text boxes larger -->
+  <!-- This html processes and displays the full payment processing flow, including a table of matches -->
+   <!-- This html attempts to enable an interactive tabular interface and save results to the PostgreSQL DB -->
+
+<!doctype html>
+<html lang="en" class="h-100">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <title>Medical Record Extraction Demo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css"
+        integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css"
+        integrity="sha256-4RctOgogjPAdwGbwq+rxfwAmSpZhWaafcZR9btzUk18=" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.2.3/dist/cosmo/bootstrap.min.css"
+        integrity="sha256-axRDISYf7Hht1KhcMnfDV2nq7hD/8Q9Rxa0YlW/o3NU=" crossorigin="anonymous">
+    <!-- use relative path to point towards the file -->
+    <link href="css/styles.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <main class="h-100 mh-100 d-flex flex-column overflow-hidden justify-content-start">
+        <div id="messages" class="px-4 pb-4 pt-2 flex-grow-1 overflow-y-auto overflow-x-hidden align-items-stretch">
+            <h2 id="no-messages-heading" class="text-center">Extract medical information by uploading records</h2>
+            <template id="message-template-user">
+                <div class="toast-container position-static w-100 d-flex flex-column align-items-stretch">
+                    <div class="toast fade show w-75 rounded-3 align-self-end">
+                        <div class="toast-header text-light background-user">
+                            <i class="bi bi-person me-1" aria-hidden="true"></i>
+                            <strong class="me-auto text-capitalize">
+                                User
+                            </strong>
+                        </div>
+                        <div class="toast-body message-file">
+                        </div>
+                        <div class="toast-body message-content">
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template id="message-template-assistant">
+                <div class="toast-container position-static w-100 d-flex flex-column align-items-stretch">
+                    <div class="toast fade show w-75 rounded-3 align-self-start">
+                        <div class="toast-header text-light background-assistant">
+                            <i class="bi bi-robot me-1" aria-hidden="true"></i>
+                            <strong class="me-auto text-capitalize">
+                                Extracted Information
+                            </strong>
+                        </div>
+                        <div class="toast-body message-content">
+                            <em class="typing-indicator">Generating...</em>
+                        </div>
+                        <div class="toast-body message-table"></div>
+                        <!-- Button to download table as a csv -->
+                        <div class="toast-body message-download"></div>
+
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div id="chat-area" class="px-4 py-2 rounded-top-5 text-dark d-flex flex-column justify-content-center">
+            <form id="chat-form">
+                <!-- Horizontally split row: Left = text/form, Right = PDF/image -->
+                <div class="d-flex" style="height: 400px;">
+                    <!-- Left: Chat inputs -->
+                    <div class="flex-grow-1 me-3 d-flex flex-column justify-content-between">
+
+                    <!-- Create radio button that has billing and payment processing options -->
+                    <div id="mode-toggle" class="mb-3" style="position: relative; z-index: 20;">
+                        <label class="form-label" style="color: white;">Choose processing mode:</label>
+  
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="processing-mode" id="mode-billing" value="billing" checked>
+                            <label class="form-check-label" for="mode-billing">Billing</label>
+                        </div>
+
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="processing-mode" id="mode-payment" value="payment">
+                            <label class="form-check-label" for="mode-payment">Payment</label>
+                        </div>
+
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="processing-mode" id="mode-inventory" value="inventory">
+                            <label class="form-check-label" for="mode-payment">Inventory Invoice</label>
+                        </div>
+
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="processing-mode" id="mode-provider" value="provider">
+                            <label class="form-check-label" for="mode-payment">Provider Invoice</label>
+                        </div>
+
+                    </div>
+
+                    <div>
+
+                        <!-- Update HTML to enable upload of multiple files -->
+                        <label for="file" class="form-label" style="color:white">Upload up to 20 PDF files:</label>
+                        <div class="input-group mb-3">
+                            <i class="bi bi-file-earmark-text input-group-text" aria-hidden="true"></i>
+                            <input id="file" name="file" class="form-control form-control-sm" type="file" accept=".pdf" multiple aria-label="Upload File">
+                        </div>
+
+
+                        <label for="message" class="form-label bi" style="color:white">Ask question about file:</label>
+                        <div class="input-group mb-3">
+                            <speech-input-button></speech-input-button>
+                            <input id="message" name="message" class="form-control form-control-sm" type="text" placeholder="<Additional Instructions>" aria-label="Additional Instructions">
+                            <button type="submit" class="btn btn-primary">
+                            Submit
+                            <i class="bi bi-send-fill" aria-hidden="true"></i>
+                            </button>
+                        </div>
+
+                        <label for="followup-message" class="form-label bi" style="color:white">Follow-up question about results:</label>
+                        <div class="input-group">
+                            <input id="followup-message" name="followup-message" class="form-control form-control-sm" type="text" placeholder="<Follow-up Question about Results>" aria-label="Follow-up Question about Results">
+                            <button type="button" id="followup-submit" class="btn btn-secondary">
+                            Ask Follow-up
+                            <i class="bi bi-arrow-return-right" aria-hidden="true"></i>
+                            </button>
+                        </div>
+
+                        <hr class="my-3" />
+
+                        <!-- Search past results -->
+                        <div class="input-group mt-2">
+                            <label for="history-timestamp" class="form-label bi" style="color:white; width: 100%;">View past results by timestamp:</label>
+                            <input id="history-timestamp" name="history-timestamp" class="form-control form-control-sm" type="text"
+                                placeholder="e.g. 2025-08-03T11:12:00" aria-label="Search by Timestamp"
+                                list="timestamp-suggestions">
+
+                            <datalist id="timestamp-suggestions">
+                                <!-- Filled dynamically -->
+                            </datalist>
+
+                            <button type="button" id="load-history" class="btn btn-info">
+                                Load Result
+                                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                            </button>
+                        </div>
+
+
+                    </div>
+        
+                </div>
+
+                <!-- Right: PDF or Image preview -->
+                <div style="flex: 0 0 60%; display: flex; flex-direction: column; align-items: center;">
+                    <img id="image-preview" class="img-fluid mt-2" style="display: none;" />
+    
+                    <!-- Dropdown to switch between multiple PDFs -->
+                    <div id="pdf-selector-container" class="mb-2" style="display: none; width: 100%;">
+                        <label for="pdf-selector" class="form-label" style="color: white;">Select a PDF file to preview:</label>
+                        <select id="pdf-selector" class="form-select form-select-sm">
+                            <!-- Populated dynamically with filenames -->
+                        </select>
+                    </div>
+
+                    <iframe id="pdf-preview" width="100%" height="100%" style="display: none; border: none;"></iframe>
+                </div>
+
+
+
+                </div>
+            </form>
+        </div>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/showdown@2.1.0/dist/showdown.min.js"></script>
+    <!-- Comment out AI Chat Protocol for now and see if we can do without it -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@microsoft/ai-chat-protocol@1.0.0-beta.20240610.1/dist/iife/index.js"></script> -->
+     <!-- Use relative path to point towards scripts -->
+    <script src="js/speech-input.js?v=2"></script>
+    <script src="js/speech-output.js?v=2"></script>
+    <!-- Install pdf-lib package to merge PDF files -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+    <!-- Add PDF.js dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+    
+    <script>
+
+        const form = document.getElementById("chat-form");
+        const messageInput = document.getElementById("message");
+        const targetContainer = document.getElementById("messages");
+        const userTemplate = document.querySelector('#message-template-user');
+        const assistantTemplate = document.querySelector('#message-template-assistant');
+        const converter = new showdown.Converter();
+        const messages = [];
+        // remember previous answer so that we can use them in follow-up questions
+        let previousAnswer = null;
+        // save uploaded files
+        let uploadedFiles = [];
+
+
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+        });
+
+        // Populate timestamp autocomplete
+        async function fetchTimestampSuggestions() {
+            try {
+                const res = await fetch("https://rec-ex-app-2wccj467-ca-back.ambitiousmushroom-8b38f770.eastus.azurecontainerapps.io/api/list_result_timestamps");
+                const suggestions = await res.json();
+
+                const dataList = document.getElementById("timestamp-suggestions");
+                dataList.innerHTML = "";
+
+                suggestions.forEach(item => {
+                    const option = document.createElement("option");
+                    option.value = item.timestamp;
+                    option.textContent = item.title || item.timestamp;
+                    dataList.appendChild(option);
+                });
+            } catch (err) {
+                console.error("Failed to fetch timestamp suggestions:", err);
+            }
+        }
+
+        // only run function once when page loads
+        // YUBI: is this the right place to put the function call?
+        fetchTimestampSuggestions();
+
+
+        /**
+        const fileInput = document.getElementById("file");
+        const imagePreview = document.getElementById("image-preview");
+        const pdfPreview = document.getElementById("pdf-preview");
+
+        // make sure that there are no memory leaks
+        let previousPdfUrl = null;
+
+        fileInput.addEventListener("change", async function() {
+            const file = fileInput.files[0];
+
+            if (!file) {
+                imagePreview.style.display = "none";
+                pdfPreview.style.display = "none";
+                // Display error message if no file is selected
+            }
+
+            const fileType = file.type;
+            const fileName = file.name;
+
+
+           // try a different way to display PDF that allows for larger PDFs to be displayed
+            if (fileType === "application/pdf") {
+
+                if (previousPdfUrl) {
+                    URL.revokeObjectURL(previousPdfUrl); // cleanup old URL
+                }
+
+                // Create and assign new object URL
+                const objectUrl = URL.createObjectURL(file);
+                previousPdfUrl = objectUrl;
+
+                // display PDF using iframe
+                const iframe = document.getElementById("pdf-preview");
+                iframe.src = objectUrl;
+                iframe.style.display = "block";
+
+                imagePreview.style.display = "none";
+            } else if (fileType.startsWith("image/")) {
+               // For image files, convert to base64 and display
+               // I don't need image code
+                const fileData = await toBase64(file);
+                imagePreview.src = fileData;
+                imagePreview.style.display = "block";
+                pdfPreview.style.display = "none";
+            } else {
+                imagePreview.style.display = "none";
+                pdfPreview.style.display = "none";
+                // Display error message if no file is selected
+            }
+
+        });
+        **/
+
+        // Show PDF preview for multiple PDF files
+        const fileInput = document.getElementById("file");
+        const pdfPreview = document.getElementById("pdf-preview");
+        const pdfSelector = document.getElementById("pdf-selector");
+        const pdfSelectorContainer = document.getElementById("pdf-selector-container");
+
+        let previousPdfUrl = null;
+
+        fileInput.addEventListener("change", async function () {
+            const files = Array.from(fileInput.files || []);
+
+            if (files.length === 0) {
+                pdfPreview.style.display = "none";
+                pdfSelectorContainer.style.display = "none";
+                return;
+            }
+
+            uploadedFiles = files.filter(f => f.type === "application/pdf");
+
+            // Populate dropdown
+            pdfSelector.innerHTML = "";
+            uploadedFiles.forEach((file, index) => {
+                const option = document.createElement("option");
+                option.value = index;
+                option.textContent = file.name || `PDF ${index + 1}`;
+                pdfSelector.appendChild(option);
+            });
+
+            pdfSelectorContainer.style.display = "block";
+            showPdfAtIndex(0);  // Show first PDF by default
+        });
+
+        // When user changes selection
+        pdfSelector.addEventListener("change", () => {
+            const index = parseInt(pdfSelector.value, 20);
+            showPdfAtIndex(index);
+        });
+
+        function showPdfAtIndex(index) {
+            if (index >= 0 && index < uploadedFiles.length) {
+                const file = uploadedFiles[index];
+                const objectUrl = URL.createObjectURL(file);
+
+                if (previousPdfUrl) URL.revokeObjectURL(previousPdfUrl);
+                previousPdfUrl = objectUrl;
+
+                pdfPreview.src = objectUrl;
+                pdfPreview.style.display = "block";
+            }
+        }
+
+
+        const speechInputButton = document.querySelector("speech-input-button");
+        speechInputButton.addEventListener("speech-input-result", (event) => {
+            messageInput.value += " " + event.detail.transcript.trim();
+            messageInput.focus();
+        });
+        speechInputButton.addEventListener("speech-input-error", (event) => {
+            alert(event.detail.error);
+        });
+
+        // query past results
+
+        const loadHistoryBtn = document.getElementById("load-history");
+        const timestampInput = document.getElementById("history-timestamp");
+
+        loadHistoryBtn.addEventListener("click", async () => {
+            const timestamp = timestampInput.value.trim();
+            if (!timestamp) {
+                alert("Please enter a valid timestamp.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://rec-ex-app-2wccj467-ca-back.ambitiousmushroom-8b38f770.eastus.azurecontainerapps.io/api/get_result_by_timestamp?timestamp=${encodeURIComponent(timestamp)}`);
+                const result = await response.json();
+
+                if (!response.ok) {
+                    alert(`Failed to load result: ${result.error || "Unknown error"}`);
+                    return;
+                }
+
+                // Hide heading
+                document.getElementById("no-messages-heading").style.display = "none";
+
+                // Prepare assistant template
+                const messagesContainer = document.getElementById("messages");
+                const assistantTemplate = document.getElementById("message-template-assistant");
+                const newMessage = assistantTemplate.content.cloneNode(true);
+
+                const messageDiv = newMessage.querySelector(".message-content");
+                const tableDiv = newMessage.querySelector(".message-table");
+                const downloadDiv = newMessage.querySelector(".message-download");
+
+                const answer = `These results were previously saved with the title <code>${result.title}</code>. You can ask follow-up questions about them below.`;
+                messageDiv.innerHTML = converter.makeHtml(answer);
+
+                // Render table
+                if (result.table_data) {
+                    previousAnswer = result.table_data;
+                    annotatedJSONToTable(result.table_data, tableDiv, result.mode);
+                }
+
+                // Insert assistant message into DOM
+                messagesContainer.appendChild(newMessage);
+                newMessage.querySelector(".toast")?.scrollIntoView();
+
+                // Decode PDF files and create uploadedFiles array
+                const pdfBlobList = await Promise.all(result.pdf_files.map(async base64Str => {
+                    const res = await fetch(`data:application/pdf;base64,${base64Str}`);
+                    return await res.blob();
+                }));
+
+                const filenames = result.pdf_filenames || [];
+                uploadedFiles = pdfBlobList.map((blob, i) =>
+                    new File([blob], filenames[i] || `Result_${i + 1}.pdf`, { type: "application/pdf" })
+                );
+
+
+                // Show filenames in messageDiv
+                const fileListText = document.createElement("p");
+                const fileNames = uploadedFiles.map(f => f.name).join(", ");
+                fileListText.innerHTML = `<strong>PDF Files:</strong> ${fileNames}`;
+                messageDiv.appendChild(fileListText);
+
+                // Populate dropdown to preview PDFs
+                pdfSelector.innerHTML = "";
+                uploadedFiles.forEach((file, index) => {
+                    const option = document.createElement("option");
+                    option.value = index;
+                    option.textContent = file.name;
+                    pdfSelector.appendChild(option);
+                });
+
+                pdfSelectorContainer.style.display = "block";
+                showPdfAtIndex(0);
+
+            } catch (err) {
+                console.error("History load error:", err);
+                const messagesContainer = document.getElementById("messages");
+                const errorBlock = document.createElement("div");
+                errorBlock.className = "alert alert-danger";
+                errorBlock.innerHTML = `<strong>Failed to load history:</strong><br><pre>${err}</pre>`;
+                messagesContainer.appendChild(errorBlock);
+            }
+        });
+
+
+        // function to download table as csv
+        function downloadCSV(csvContent, filename = "EHRapp_results.csv") {
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // helper function to display editable, interactive table of results 
+        // YUBI: TODO, change patients to results or something more general
+        function annotatedJSONToTable(patients, assistantElement, selectedMode) {
+            const table = document.createElement("table");
+            table.className = "table table-bordered mt-2";
+
+            if (!patients || patients.length === 0) return;
+
+            let propertyOrder = [];
+
+            // YUBI: make sure these fields are listed correctly and like Michelle wants
+            if (selectedMode === "payment") {
+                propertyOrder = ["Payer Name", "Payee Name", "Patient Name", "Amount Paid", "Payment Type", "Payment Page Number", "Card Number", "CVV Code", "Expiration Date", "Check Number"];
+            } else if (selectedMode === "inventory") {
+                propertyOrder = ["Ship To Number", "Payee", "Amount", "Invoice Date", "Due Date", "Invoice Number", "PO BOX Number", "PO Box Name", "Location", "Category"];
+            } else if (selectedMode === "provider") {
+                propertyOrder = ["Provider Name", "Provider Title", "Date", "Table Category", "Total Pay", "Facility Name", "Total Hours Worked", "Hourly Pay Rate", "Working Days", "Average Cost per Day", "Case Log Number", "Patient Initials", "Full Case Log"];
+            } else {
+                propertyOrder = ["Patient Name", "Date of Birth", "Sex", "Address", "Email", "Phone", "Primary Insurance Name", "Primary Insurance Type", "Primary Insurance Member ID", "Primary Insurance Group ID", "Secondary Insurance Name", "Secondary Insurance Type", "Secondary Insurance Member ID", "Secondary Insurance Group ID", "CPT Codes", "ICD Codes"];
+            }
+
+            // create the header of the table based on property order
+            const thead = document.createElement("thead");
+            const headRow = document.createElement("tr");
+            propertyOrder.forEach(header => {
+                const th = document.createElement("th");
+                th.textContent = header;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            // create displayed table
+            const tbody = document.createElement("tbody");
+            patients.forEach(patient => {
+                const tr = document.createElement("tr");
+
+                propertyOrder.forEach(key => {
+
+                    const td = document.createElement("td");
+                    let entry = patient[key];
+
+                    // Normalize if entry is primitive (not object or missing "value" field)
+                    // YUBI: this is intended to display the results from historical queries
+                    if (
+                        entry === null ||
+                        entry === undefined ||
+                        typeof entry !== "object" ||
+                        Array.isArray(entry) ||
+                        !("value" in entry)
+                    ) {
+                        entry = {
+                            value: entry,
+                            valid: true  // Backward compatibility fix
+                        };
+                    }
+
+                    const value = entry.value ?? "";
+
+                    // new logic to display array values as well
+                    // Render the value based on its type
+                    if (Array.isArray(value)) {
+                        if (value.length > 0 && typeof value[0] === "object" && value[0] !== null) {
+                            // Editable textarea for array of objects
+                            const textarea = document.createElement("textarea");
+                            textarea.className = "form-control form-control-sm";
+                            textarea.rows = Math.min(5, value.length + 1);
+                            textarea.style.whiteSpace = "pre";
+                            // YUBI: is this the correct width?
+                            textarea.style.minWidth = "400px";  // adjust this minimum width to show results well
+                            textarea.value = JSON.stringify(value, null, 2);  // Pretty-print JSON
+
+                            if (entry?.valid === false) {
+                                textarea.classList.add("is-invalid");
+                                textarea.title = entry.reason || "Invalid value";
+                            }
+
+                            td.appendChild(textarea);
+                        } else {
+                            // Editable list of primitive values
+                            const list = document.createElement("ul");
+                            list.className = "list-unstyled mb-0";
+
+                            value.forEach((v, i) => {
+                                const li = document.createElement("li");
+                                const input = document.createElement("input");
+                                input.type = "text";
+                                input.className = "form-control form-control-sm mb-1";
+                                input.value = v;
+
+                                if (entry?.valid === false) {
+                                    input.classList.add("is-invalid");
+                                    input.title = entry.reason || "Invalid value";
+                                }
+
+                                li.appendChild(input);
+                                list.appendChild(li);
+                            });
+
+                            td.appendChild(list);
+                        }
+                    } else {
+                        // Scalar (string, number, etc.)
+                        const input = document.createElement("input");
+                        input.type = "text";
+                        input.className = "form-control form-control-sm";
+                        input.value = value;
+
+                        if (entry?.valid === false) {
+                            input.classList.add("is-invalid");
+                            input.title = entry.reason || "Invalid value";
+                        }
+
+                        td.appendChild(input);
+                    }
+
+
+                    tr.appendChild(td);
+                });
+
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(tbody);
+
+            // display the table
+            const parent = assistantElement.closest(".toast");
+            let tableContainer = parent.querySelector(".message-table");
+            if (!tableContainer) {
+                tableContainer = document.createElement("div");
+                tableContainer.className = "message-table mt-2";
+                parent.appendChild(tableContainer);
+            }
+
+            let downloadContainer = parent.querySelector(".message-download");
+            if (!downloadContainer) {
+                downloadContainer = document.createElement("div");
+                downloadContainer.className = "message-download mt-2";
+                parent.appendChild(downloadContainer);
+            }
+
+            tableContainer.innerHTML = "";
+            downloadContainer.innerHTML = "";
+
+            const scrollWrapper = document.createElement("div");
+            scrollWrapper.className = "table-responsive";
+            scrollWrapper.style.overflowX = "auto";
+            scrollWrapper.appendChild(table);
+            tableContainer.appendChild(scrollWrapper);
+
+            // enable download of table as csv
+            const downloadBtn = document.createElement("button");
+            downloadBtn.className = "btn btn-outline-primary btn-sm mt-2";
+            downloadBtn.textContent = "Download as CSV";
+
+            downloadBtn.addEventListener("click", () => {
+                const rows = [propertyOrder.join(",")]; // Header row
+
+                const allRows = table.querySelectorAll("tbody tr");
+                allRows.forEach(row => {
+                    const values = [];
+
+                    // Iterate by column index to align with propertyOrder
+                    propertyOrder.forEach((key, index) => {
+                        const td = row.children[index];
+                        let value = "";
+
+                        if (!td) {
+                            values.push(`""`);
+                            return;
+                        }
+
+                        // Check for textarea (array of objects)
+                        const textarea = td.querySelector("textarea");
+                        if (textarea) {
+                            try {
+                                const parsed = JSON.parse(textarea.value);
+                                value = parsed;
+                            } catch (e) {
+                                value = textarea.value;
+                            }
+                        }
+                        // Check for multiple inputs (array of primitives)
+                        else if (td.querySelectorAll("input").length > 1) {
+                            const inputs = td.querySelectorAll("input");
+                            value = Array.from(inputs).map(input => input.value);
+                        }
+                        // Single input field
+                        else {
+                            const input = td.querySelector("input");
+                            if (input) {
+                                value = input.value;
+                            }
+                        }
+
+                        // Apply your original safeValue logic
+                        let safeValue = "";
+                        if (typeof value === "string") {
+                            safeValue = value.replace(/"/g, '""');
+                        } else if (Array.isArray(value) && typeof value[0] === "object") {
+                            // Detect array of objects early and stringify it correctly
+                            safeValue = JSON.stringify(value).replace(/"/g, '""');
+                        } else if (Array.isArray(value)) {
+                            // Existing primitive array handling
+                            safeValue = value.map(v => String(v)).join(", ").replace(/"/g, '""');
+                        } else if (typeof value === "number" || typeof value === "boolean") {
+                            safeValue = String(value).replace(/"/g, '""');
+                        } else if (value === null || value === undefined) {
+                            safeValue = "";
+                        } else {
+                            // Final fallback
+                            safeValue = JSON.stringify(value).replace(/"/g, '""');
+                        }
+
+
+                        values.push(`"${safeValue}"`);
+                    });
+
+                    rows.push(values.join(","));
+                });
+
+                let csvContent = rows.join("\n");
+
+                if (rows.length <= 1) {
+                    console.warn("No data found in table — fallback to dummy.");
+                    csvContent = "Column A,Column B\nDummy1,Value1\nDummy2,Value2";
+                }
+
+                downloadCSV(csvContent);
+            });
+
+            downloadContainer.appendChild(downloadBtn);
+
+            // enable save to database
+            const saveBtn = document.createElement("button");
+            saveBtn.className = "btn btn-outline-success btn-sm mt-2 ms-2"; // margin to separate buttons
+            saveBtn.textContent = "Save to Database";
+
+            saveBtn.addEventListener("click", async () => {
+                const data = [];
+
+                const allRows = table.querySelectorAll("tbody tr");
+                allRows.forEach(row => {
+                    const rowData = {};
+
+                    propertyOrder.forEach((key, index) => {
+                        const td = row.children[index];
+                        let value = "";
+
+                        if (!td) {
+                            rowData[key] = "";
+                            return;
+                        }
+
+                        // Handle textarea (array of objects)
+                        const textarea = td.querySelector("textarea");
+                        if (textarea) {
+                            try {
+                                const parsed = JSON.parse(textarea.value);
+                                value = parsed;
+                            } catch (e) {
+                                value = textarea.value;
+                            }
+                        }
+                        // Handle multiple inputs (array of primitives)
+                        else if (td.querySelectorAll("input").length > 1) {
+                            const inputs = td.querySelectorAll("input");
+                            value = Array.from(inputs).map(input => input.value);
+                        }
+                        // Single input (scalar)
+                        else {
+                            const input = td.querySelector("input");
+                            if (input) {
+                                value = input.value;
+                            }
+                        }
+
+                        rowData[key] = value;
+                    });
+
+                    data.push(rowData);
+                });
+
+                const formData = new FormData();
+
+                // 1. Title: current timestamp
+                const timestampTitle = new Date().toISOString();
+                formData.append("title", timestampTitle);
+
+                // 2. Mode
+                formData.append("mode", selectedMode);
+
+                // 3. Table Data
+                formData.append("rows", JSON.stringify(data));
+
+                // 4. Files: attach all PDF files
+                if (uploadedFiles && uploadedFiles.length > 0) {
+                    uploadedFiles.forEach(file => {
+                        formData.append("files", file); // Same key name "files" for all
+                    });
+                } else {
+                    alert("No PDF files available to save.");
+                    return;
+                }
+
+                try {
+                    const response = await fetch("https://rec-ex-app-2wccj467-ca-back.ambitiousmushroom-8b38f770.eastus.azurecontainerapps.io/api/save_results", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch (jsonError) {
+                        throw new Error("Server response was not valid JSON.");
+                    }
+
+                    if (response.ok) {
+                        alert("Results successfully saved to database.");
+                    } else {
+                        alert(`Save failed: ${result.error}`);
+                    }
+                } catch (err) {
+                    console.error("Save error:", err);
+                    alert("Failed to connect to server.");
+                }
+
+                // clear uploadedFiles
+                uploadedFiles = [];
+
+                // optionally refresh saved results history
+                // I don't think this is needed right now bc the user can just scroll up to see history in same session
+                // await fetchTimestampSuggestions();
+            });
+
+
+            downloadContainer.appendChild(saveBtn);
+        }
+
+
+
+        // Event listener for form submission
+        form.addEventListener("submit", async function(e) {
+            e.preventDefault();
+
+            // add more debugging statements with following
+            // messageDiv.innerHTML = "error message"
+
+            // Hide the no-messages-heading when a message is added
+            document.getElementById("no-messages-heading").style.display = "none";
+
+            // merge PDF files
+            
+            // const file = document.getElementById("file").files[0];
+            // retrieve multiple files
+            const input = document.getElementById("file");
+            const files = input.files;
+
+            // get processing mode
+            const selectedMode = document.querySelector('input[name="processing-mode"]:checked')?.value;
+
+            if (files.length === 0) {
+                // YUBI: I'm not sure if this will work in my app
+                // display a modal dialog box with a specified message and an "OK" button
+                alert("Please select at least one PDF.");
+                return;
+            }
+            if (files.length > 20) {
+                alert("You can only upload up to 20 PDFs.");
+                return;
+            }
+
+            // Convert FileList to array and store it
+            uploadedFiles = Array.from(files);  // Save the uploaded files globally
+
+            const { PDFDocument } = PDFLib;
+            const mergedPdf = await PDFDocument.create();
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+
+                if (selectedMode === "inventory") {
+                    // Only merge the first page of each PDF
+                    const firstPageIndex = 0;
+                    const [firstPage] = await mergedPdf.copyPages(pdf, [firstPageIndex]);
+                    mergedPdf.addPage(firstPage);
+                } else {
+                    // Merge all pages of each PDF
+                    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                    copiedPages.forEach((page) => mergedPdf.addPage(page));
+                }
+            }
+
+            const mergedPdfBytes = await mergedPdf.save();
+            // this is the file data that will be sent to the back-end
+            const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+
+
+            // YUBI: multiple file upload changes end here
+
+
+            // const fileData = file ? await toBase64(file) : null;
+            // initialize fileDataTemp
+            let fileDataTemp;
+            const fileName = file.name.toLowerCase();
+
+            const message = messageInput.value;
+
+            const userTemplateClone = userTemplate.content.cloneNode(true);
+            userTemplateClone.querySelector(".message-content").innerText = message;
+            
+            
+            const fileData = fileDataTemp;
+            targetContainer.appendChild(userTemplateClone);
+
+            const assistantTemplateClone = assistantTemplate.content.cloneNode(true);
+            let messageDiv = assistantTemplateClone.querySelector(".message-content");
+            targetContainer.appendChild(assistantTemplateClone);
+
+            messages.push({
+                "role": "user",
+                "content": message
+            });
+
+            try {
+                messageDiv.scrollIntoView();
+
+                // new code to push more simply to back-end without using AIChatProtocolClient
+                const formData = new FormData();
+
+                // YUBI: change file from a single file to the merged pdf
+                // formData.append("file", file);
+                formData.append("file", blob);
+
+                formData.append("message", message);
+
+                // Add processing mode to form
+                if (selectedMode) {
+                    formData.append("processing_mode", selectedMode);
+                }
+
+                const response = await fetch("https://rec-ex-app-2wccj467-ca-back.ambitiousmushroom-8b38f770.eastus.azurecontainerapps.io/api/process_pdf", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const contentType = response.headers.get("content-type");
+
+                // YUBI: add extra debugging statements to identify error
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    messageDiv.innerHTML = `
+                        <strong>Error ${response.status}</strong><br>
+                        <pre>${errorText}</pre>
+                    `;
+                    return;
+                }
+
+                let result;
+                if (contentType && contentType.includes("application/json")) {
+                    result = await response.json();
+                } else {
+                    const rawText = await response.text();
+                    messageDiv.innerHTML = `
+                        <strong>Unexpected non-JSON response:</strong><br>
+                        <pre>${rawText}</pre>
+                    `;
+                    return;
+                }
+
+                messageDiv.innerHTML = "";
+                const summary = document.createElement("p");
+                const answer = "The information has been extracted successfully. You can ask follow-up questions about the results.";
+                // YUBI: I'm not sure if I want to write answer to the messageDiv
+                summary.innerHTML = converter.makeHtml(answer);
+                messageDiv.appendChild(summary);
+
+                if (selectedMode === "payment") {
+
+                    // break down into pages and payments
+                    const pagesText = document.createElement("p");
+                    if (result.pages) {
+                        // Show pages as plain text
+                        let pagesAnswer = `Payments were found on the following pages: ${result.pages.join(", ")}`;
+                        pagesText.innerHTML = converter.makeHtml(pagesAnswer);
+                    } else {
+                        // If no payments found, show a message
+                        let pagesAnswer = 'No payments found in the document.';
+                        pagesText.innerHTML = converter.makeHtml(pagesAnswer);
+                    }
+                    messageDiv.appendChild(pagesText);
+
+                    if (result.payments) {
+                        previousAnswer = result.payments;
+                        // Show payments table
+                        annotatedJSONToTable(result.payments, messageDiv, selectedMode);
+                    }
+
+                } else if (selectedMode === "billing" && result.patients) {
+                    previousAnswer = result.patients;
+                    annotatedJSONToTable(result.patients, messageDiv, selectedMode);
+                } else if (selectedMode === "inventory" && result.inventory) {
+                    previousAnswer = result.inventory;
+                    annotatedJSONToTable(result.inventory, messageDiv, selectedMode);
+                } else if (selectedMode === "provider" && result.provider) {
+                    previousAnswer = result.provider;
+                    annotatedJSONToTable(result.provider, messageDiv, selectedMode);
+                }
+
+                messages.push({
+                    "role": "assistant",
+                    "content": answer
+                });
+
+                messageInput.value = "";
+
+                const speechOutput = document.createElement("speech-output-button");
+                speechOutput.setAttribute("text", answer);
+                messageDiv.appendChild(speechOutput);
+                messageInput.focus();
+
+            } catch (error) {
+                messageDiv.innerHTML = "Error: " + error;
+            }
+        });
+
+        // Event listener for follow-up question submission
+        document.getElementById("followup-submit").addEventListener("click", async function() {
+            const followupMessage = document.getElementById("followup-message").value;
+            if (!followupMessage) return;
+
+            // check that previousAnswer is not null
+            if (!previousAnswer) {
+                alert("Please process a file first before asking follow-up questions.");
+                return;
+            }
+
+            // access same file but with different message
+            const formData = new FormData();
+            formData.append("message", followupMessage);
+            // add previous results to formData, saved as global variable
+            formData.append("previous_answer", JSON.stringify(previousAnswer));
+
+            const response = await fetch("https://rec-ex-app-2wccj467-ca-back.ambitiousmushroom-8b38f770.eastus.azurecontainerapps.io/api/followup", {
+                method: "POST",
+                body: formData
+            });
+
+            const container = document.getElementById("messages");
+            const div = document.createElement("div");
+            div.className = "alert alert-secondary mt-2";
+            div.innerHTML = `<strong>Follow-up Answer:</strong><br>`;
+
+            if (response.ok) {
+                const result = await response.json();
+                div.innerHTML = converter.makeHtml(result.answer || "No answer provided.");
+            } else {
+                const errorText = await response.text();
+                div.innerHTML = `<strong>Error:</strong><pre>${errorText}</pre>`;
+            }
+
+            container.appendChild(div);
+            div.scrollIntoView();
+            document.getElementById("followup-message").value = "";
+        });
+
+    </script>
+</body>
+</html>

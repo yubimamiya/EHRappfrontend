@@ -1,0 +1,1 @@
+Test to check that config file is accessible in src folder.

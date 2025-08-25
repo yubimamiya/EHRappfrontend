@@ -1,0 +1,20 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  app_location: "src"
+  api_location: ""  # No Azure Functions used
+  output_location: ""  # No build needed for vanilla HTML/CSS/JS
+
+steps:
+  - task: AzureStaticWebApp@0
+    inputs:
+      app_location: 'src'
+      api_location: '$(api_location)'
+      output_location: '$(output_location)'
+      azure_static_web_apps_api_token: $(deployment_token)
